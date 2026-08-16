@@ -1,0 +1,81 @@
+# Topologi sesuai docs/ARCHITECTURE.md §10
+# Hanya "gateway" yang expose port ke luar — service lain hanya diakses lewat network internal.
+
+services:
+  gateway:
+    build: ./gateway
+    ports:
+      - "3000:3000"
+    environment:
+      USER_SERVICE_URL: http://user-service:3001
+      CATALOG_SERVICE_URL: http://catalog-service:3002
+      ORDER_SERVICE_URL: http://order-service:3003
+    depends_on:
+      - user-service
+      - catalog-service
+      - order-service
+
+  user-service:
+    build: ./services/user-service
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@user-db:5432/user_db
+      JWT_SECRET: ganti_dengan_secret_asli
+    depends_on:
+      - user-db
+
+  catalog-service:
+    build: ./services/catalog-service
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@catalog-db:5432/catalog_db
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      - catalog-db
+      - redis
+
+  order-service:
+    build: ./services/order-service
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@order-db:5432/order_db
+      REDIS_URL: redis://redis:6379
+      USER_SERVICE_URL: http://user-service:3001
+      CATALOG_SERVICE_URL: http://catalog-service:3002
+    depends_on:
+      - order-db
+      - redis
+      - user-service
+      - catalog-service
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis-data:/data
+
+  user-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: user_db
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - user-db-data:/var/lib/postgresql/data
+
+  catalog-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: catalog_db
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - catalog-db-data:/var/lib/postgresql/data
+
+  order-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: order_db
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - order-db-data:/var/lib/postgresql/data
+
+volumes:
+  redis-data:
+  user-db-data:
+  catalog-db-data:
+  order-db-data:
