@@ -26,7 +26,7 @@ graph LR
 
 ---
 
-## 1. Arsitek Sistem — *(kamu)*
+## 1. Arsitek Sistem 
 
 Peran ini sudah menghasilkan dua deliverable inti; sisanya bersifat menjaga konsistensi selama implementasi berjalan.
 

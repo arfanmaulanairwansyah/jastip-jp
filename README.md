@@ -6,44 +6,134 @@ Proyek tugas kuliah / portofolio kelompok: web jastip barang dari Jepang ke Indo
 
 ```
 titip-jp/
-├── gateway/                  # API Gateway — satu-satunya pintu masuk publik
+├── gateway/                  # API Gateway — routing ke 3 service
+│   ├── Dockerfile
+│   ├── .env.example
+│   └── src/index.js
 ├── services/
 │   ├── user-service/         # Auth & profil pembeli
 │   ├── catalog-service/      # Katalog barang & stok
 │   └── order-service/        # Pemesanan & kalkulasi biaya
+├── nginx/
+│   └── nginx.conf            # Load balancer (Lapisan 2)
 ├── frontend/
-│   └── titip-jp.html         # UI (statis, akan disambungkan ke API Gateway)
-├── docker-compose.yml
+│   └── index.html            # UI statis
+├── docker-compose.yml        # Orkestrasi lengkap (9 service)
+├── reset.sh                  # Skrip reset demo (Codespaces/Linux)
 └── docs/
-    ├── ARCHITECTURE.md       # Arsitektur sistem, diagram, ADR
-    ├── TASKS.md              # Pembagian tugas per peran
-    └── adr/                  # ADR tambahan jika dipecah per file
+    ├── ARCHITECTURE.md
+    └── TASKS.md
 ```
 
-## Cara Menjalankan (setelah service diisi)
+## Cara Menjalankan di GitHub Codespaces
+
+> **Catatan:** Jangan pakai Docker Desktop di laptop. Semua dikerjakan di GitHub Codespaces.
+
+### 1. Jalankan sistem dari nol
 
 ```bash
-docker compose up -d
+docker compose up -d --build
 ```
 
-- Gateway tersedia di `http://localhost:3000`
-- Frontend: buka langsung `frontend/titip-jp.html` di browser (untuk versi statis) atau sajikan lewat gateway setelah diintegrasikan
+### 2. Cek semua service sudah sehat
 
-## Setup Lokal per Service (tanpa Docker)
+```bash
+docker compose ps
+# Semua harus status "running (healthy)"
+```
+
+### 3. Tes health check
+
+```bash
+curl http://localhost:8080/health      # via nginx (load balancer)
+curl http://localhost:8080/api/catalog # via gateway → catalog-service
+```
+
+### 4. Reset bersih (untuk demo/presentasi)
+
+```bash
+bash reset.sh
+```
+
+Script ini melakukan: `docker compose down -v` → build ulang → tunggu sehat → verifikasi.
+
+---
+
+## Topologi Jaringan
+
+```
+Browser
+  │
+  ▼ port 8080
+[nginx] ─── load balancer (least_conn)
+  │
+  ▼ port 3000 (internal)
+[gateway] ─── routing API
+  ├── /api/auth    → user-service:3001
+  ├── /api/catalog → catalog-service:3002
+  └── /api/orders  → order-service:3003
+         │               │               │
+    [user-db]      [catalog-db]     [order-db]
+    PostgreSQL      PostgreSQL       PostgreSQL
+                        │
+                     [redis]
+                     cache + stock lock
+```
+
+Hanya `nginx` (port 8080) yang diekspos ke luar. Semua service lain hanya diakses lewat Docker internal network.
+
+---
+
+## Scale Horizontal (Demo Lapisan 2)
+
+```bash
+# Jalankan 3 instance gateway — nginx otomatis distribusikan beban
+docker compose up -d --scale gateway=3
+docker compose ps
+```
+
+---
+
+## Endpoint API
+
+| Method | Path | Deskripsi |
+|---|---|---|
+| GET | `/health` | Health check nginx |
+| POST | `/api/auth/register` | Registrasi pembeli |
+| POST | `/api/auth/login` | Login, kembalikan JWT |
+| GET | `/api/catalog` | Daftar barang |
+| GET | `/api/catalog/:id` | Detail barang |
+| POST | `/api/catalog` | Tambah barang (admin) |
+| PATCH | `/api/catalog/:id/stok` | Update stok (admin) |
+| POST | `/api/orders` | Buat pesanan |
+| GET | `/api/orders/:id` | Detail pesanan |
+| GET | `/api/orders?user_id=` | Riwayat pesanan |
+| PATCH | `/api/orders/:id/status` | Ubah status (admin) |
+
+---
+
+## Troubleshooting
+
+| Gejala | Penyebab | Solusi |
+|---|---|---|
+| Service status `exited` | Lihat log dulu | `docker compose logs <nama-service> \| tail -30` |
+| `ECONNREFUSED` antar service | Pakai nama service, bukan `localhost` | Hostname = nama service di compose (mis. `redis`, `catalog-db`) |
+| Service mati terus hidup lagi | Database belum siap | Healthcheck + `condition: service_healthy` sudah dipasang |
+| Port 8080 sudah dipakai | Konflik port | Ganti `"8081:80"` di nginx di docker-compose.yml |
+
+---
+
+## Setup per Service (tanpa Docker — development lokal)
 
 ```bash
 cd services/catalog-service
 cp .env.example .env
+# Edit .env: ganti hostname ke localhost (bukan nama service docker)
 npm install
 npm run dev
 ```
 
-Ulangi untuk `user-service`, `order-service`, dan `gateway`.
-
-## Dokumentasi
-
-- Arsitektur & keputusan desain → [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
-- Pembagian tugas per peran → [`docs/TASKS.md`](docs/TASKS.md)
+---
 
 ## Peran Kelompok
 
@@ -51,10 +141,11 @@ Ulangi untuk `user-service`, `order-service`, dan `gateway`.
 |---|---|
 | Arsitek Sistem | Arsitektur, diagram, ADR, konsistensi desain |
 | Backend/API Engineer | Endpoint & logika bisnis inti |
-| Infrastructure & DevOps | Docker, compose, gateway |
+| **Infrastructure & DevOps** | **Docker, compose, nginx, healthcheck, jalankan sistem** |
 | Data & Persistence Engineer | Skema data, cache/Redis, konsistensi stok, migrasi |
-| QA, Load-Test & Dokumentasi | Pengujian, load test, AI-LOG, README, laporan akhir |
+| QA, Load-Test & Dokumentasi | Pengujian, load test, AI-LOG, laporan akhir |
 
 ## Status
 
 🚧 Skeleton awal — endpoint di tiap service masih stub (`501 belum diimplementasikan`). Lihat `docs/TASKS.md` untuk urutan pengerjaan.
+
