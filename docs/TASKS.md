@@ -48,27 +48,27 @@ Peran ini sudah menghasilkan dua deliverable inti; sisanya bersifat menjaga kons
 **Urutan implementasi (dari paling sederhana):**
 
 ### 2.1 Catalog Service
-- [ ] Endpoint `GET /api/catalog` — list barang + filter kategori
-- [ ] Endpoint `GET /api/catalog/:id` — detail barang
-- [ ] Endpoint `POST /api/catalog` (admin) — tambah barang
-- [ ] Endpoint `PATCH /api/catalog/:id/stok` (admin) — update stok
-- [ ] Integrasi baca dari Redis cache dulu sebelum ke Catalog DB (cache-aside pattern)
+- [x] Endpoint `GET /api/catalog` — list barang + filter kategori
+- [x] Endpoint `GET /api/catalog/:id` — detail barang
+- [x] Endpoint `POST /api/catalog` (admin) — tambah barang
+- [x] Endpoint `PATCH /api/catalog/:id/stok` (admin) — update stok
+- [x] Integrasi baca dari Redis cache dulu sebelum ke Catalog DB (cache-aside pattern)
 
 ### 2.2 User Service
-- [ ] Endpoint `POST /api/auth/register`
-- [ ] Endpoint `POST /api/auth/login` — hasilkan JWT
-- [ ] Middleware validasi JWT (dipakai ulang di Order Service)
+- [x] Endpoint `POST /api/auth/register`
+- [x] Endpoint `POST /api/auth/login` — hasilkan JWT
+- [x] Middleware validasi JWT (dipakai ulang di Order Service)
 
 ### 2.3 Order Service (paling kompleks — kerjakan terakhir)
-- [ ] Endpoint `POST /api/orders` — implementasi alur di §6 `ARCHITECTURE.md`: `DECR` stok di Redis → cek harga ke Catalog Service → simpan pesanan → rollback (`INCR`) kalau gagal
-- [ ] Endpoint `GET /api/orders/:id`
-- [ ] Endpoint `GET /api/orders?user_id=`
-- [ ] Endpoint `PATCH /api/orders/:id/status` (admin)
-- [ ] Logika kalkulasi biaya (harga barang + fee % + ongkir/kg) — reuse logika dari kalkulator di `titip-jp.html`
+- [x] Endpoint `POST /api/orders` — implementasi alur di §6 `ARCHITECTURE.md`: `DECR` stok di Redis → cek harga ke Catalog Service → simpan pesanan → rollback (`INCR`) kalau gagal
+- [x] Endpoint `GET /api/orders/:id`
+- [x] Endpoint `GET /api/orders?user_id=`
+- [x] Endpoint `PATCH /api/orders/:id/status` (admin)
+- [x] Logika kalkulasi biaya (harga barang + fee % + ongkir/kg) — reuse logika dari kalkulator di `titip-jp.html`
 
 ### 2.4 API Gateway
-- [ ] Routing ke 3 service sesuai tabel endpoint §9
-- [ ] Validasi token sekali di gateway (bukan diulang tiap service)
+- [x] Routing ke 3 service sesuai tabel endpoint §9
+- [x] Validasi token sekali di gateway (bukan diulang tiap service)
 
 **Serahkan ke QA:** contoh request/response tiap endpoint (Postman collection atau file `.http`) begitu satu service selesai — jangan tunggu semua service kelar.
 
@@ -116,7 +116,7 @@ Peran ini sudah menghasilkan dua deliverable inti; sisanya bersifat menjaga kons
 ## 5. QA, Load-Test & Dokumentasi
 
 ### 5.1 Pengujian fungsional (mulai begitu Catalog Service jadi)
-- [ ] Test case per endpoint di §9 `ARCHITECTURE.md` (happy path + error case, mis. stok habis → harus 409)
+- [x] Test case per endpoint di §9 `ARCHITECTURE.md` (happy path + error case, mis. stok habis → harus 409)
 - [ ] Test alur penuh: registrasi → login → lihat katalog → buat pesanan → cek status
 
 ### 5.2 Load Test (acuan §11 `ARCHITECTURE.md`)
@@ -127,7 +127,7 @@ Peran ini sudah menghasilkan dua deliverable inti; sisanya bersifat menjaga kons
 
 ### 5.3 Dokumentasi
 - [ ] **AI-LOG** — catat penggunaan AI selama proyek (prompt penting, apa yang di-generate, apa yang diedit manual)
-- [ ] **README.md** — cara install & jalankan (`docker compose up`), struktur folder, ringkasan arsitektur (boleh rujuk `ARCHITECTURE.md`)
+- [x] **README.md** — cara install & jalankan (`docker compose up`), struktur folder, ringkasan arsitektur (boleh rujuk `ARCHITECTURE.md`)
 - [ ] **Laporan akhir** — kumpulkan hasil load test, screenshot pengujian, dan status akhir tiap fitur dari checklist role lain
 
 ---

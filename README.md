@@ -110,6 +110,12 @@ docker compose ps
 | GET | `/api/orders?user_id=` | Riwayat pesanan |
 | PATCH | `/api/orders/:id/status` | Ubah status (admin) |
 
+Catatan backend saat ini:
+- `user-service` sudah mendukung registrasi, login JWT, dan lookup user internal.
+- `catalog-service` sudah mendukung list, detail, tambah item, update stok, dan cache Redis.
+- `order-service` sudah mendukung checkout atomik, idempotency key, riwayat order, dan update status.
+- `gateway` sudah memproteksi route order dan route admin dengan verifikasi JWT.
+
 ---
 
 ## Troubleshooting
@@ -147,5 +153,10 @@ npm run dev
 
 ## Status
 
-🚧 Skeleton awal — endpoint di tiap service masih stub (`501 belum diimplementasikan`). Lihat `docs/TASKS.md` untuk urutan pengerjaan.
+Backend inti untuk peran Backend/API Engineer sudah terimplementasi pada `gateway`, `user-service`, `catalog-service`, dan `order-service`.
+
+Yang masih perlu dilanjutkan oleh tim:
+- validasi end-to-end lewat `docker compose up --build`
+- penyesuaian frontend/mobile ke endpoint nyata
+- load test, AI-LOG, dan laporan akhir
 
