@@ -127,7 +127,10 @@ function createDeps(overrides = {}) {
     baseURL: process.env.CATALOG_SERVICE_URL || "http://catalog-service:3002",
     timeout: 5000,
   });
-  const userClient = overrides.userClient || null;
+  const userClient = overrides.userClient || axios.create({
+    baseURL: process.env.USER_SERVICE_URL || "http://user-service:3001",
+    timeout: 5000,
+  });
 
   return { pool, redis, catalogClient, userClient };
 }
@@ -147,6 +150,21 @@ async function getItemSnapshot(catalogClient, itemId) {
     itemName: item.nama || item.name || `item-${itemId}`,
     unitPriceIdr,
   };
+}
+
+async function ensureUserExists(userClient, userId) {
+  if (!userClient) {
+    return;
+  }
+
+  try {
+    await userClient.get(`/users/${userId}`);
+  } catch (error) {
+    if (error.response && error.response.status === 404) {
+      throw new AppError(404, "USER_TIDAK_ADA", "User tidak ditemukan");
+    }
+    throw error;
+  }
 }
 
 async function reserveStock(redis, itemId, qty) {
@@ -299,6 +317,7 @@ function createApp(deps) {
         }
       }
 
+      await ensureUserExists(deps.userClient, payload.userId);
       reservation = await reserveStock(deps.redis, payload.itemId, payload.qty);
       const item = await getItemSnapshot(deps.catalogClient, payload.itemId);
       const pricing = computePricing({

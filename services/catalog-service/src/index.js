@@ -1,33 +1,331 @@
-// Catalog Service — lihat docs/ARCHITECTURE.md §4, §8, §9
-// TODO(Backend Engineer): implementasikan cache-aside ke Redis sebelum baca ke catalog-db
-// TODO(Data Engineer): tabel `items` & `categories`, plus sinkronisasi stok Redis <-> Postgres (docs/TASKS.md §4.3)
-
 const express = require("express");
-const app = express();
-app.use(express.json());
+const { Pool } = require("pg");
+const { createClient } = require("redis");
 
-const PORT = process.env.PORT || 3002;
+const DEFAULT_PORT = Number(process.env.PORT) || 3002;
 
-app.get("/health", (req, res) => res.json({ status: "ok", service: "catalog-service" }));
+class AppError extends Error {
+  constructor(status, code, message) {
+    super(message);
+    this.status = status;
+    this.code = code;
+  }
+}
 
-app.get("/", (req, res) => {
-  // TODO: list barang, filter kategori, baca dari cache dulu
-  res.status(501).json({ message: "belum diimplementasikan" });
-});
+function errorBody(code, message) {
+  return { error: { code, message } };
+}
 
-app.get("/:id", (req, res) => {
-  // TODO: detail satu barang
-  res.status(501).json({ message: "belum diimplementasikan" });
-});
+function parsePositiveInt(value, fallback) {
+  const parsed = Number.parseInt(value, 10);
+  if (Number.isNaN(parsed)) {
+    return fallback;
+  }
 
-app.post("/", (req, res) => {
-  // TODO(admin): tambah barang baru
-  res.status(501).json({ message: "belum diimplementasikan" });
-});
+  return parsed;
+}
 
-app.patch("/:id/stok", (req, res) => {
-  // TODO(admin): update stok — ingat inisialisasi ulang key Redis stock:{item_id}
-  res.status(501).json({ message: "belum diimplementasikan" });
-});
+function normalizeItem(row) {
+  return {
+    id: Number(row.id),
+    nama: row.nama,
+    kategori: row.kategori,
+    harga_idr: Number(row.harga_idr),
+    stok: Number(row.stok),
+    deskripsi: row.deskripsi,
+    created_at: row.created_at,
+  };
+}
 
-app.listen(PORT, () => console.log(`Catalog Service jalan di port ${PORT}`));
+function validateCreateItem(body) {
+  const nama = typeof body.nama === "string" ? body.nama.trim() : "";
+  const kategori = typeof body.kategori === "string" ? body.kategori.trim().toLowerCase() : "";
+  const hargaIdr = Number(body.harga_idr);
+  const stok = Number(body.stok);
+  const deskripsi = typeof body.deskripsi === "string" ? body.deskripsi.trim() : "";
+
+  if (!nama || !kategori || !Number.isInteger(hargaIdr) || hargaIdr < 1 || !Number.isInteger(stok) || stok < 0) {
+    throw new AppError(400, "INPUT_TIDAK_VALID", "nama, kategori, harga_idr, dan stok wajib valid");
+  }
+
+  return { nama, kategori, hargaIdr, stok, deskripsi };
+}
+
+function validateStock(body) {
+  const stok = Number(body.stok);
+  if (!Number.isInteger(stok) || stok < 0) {
+    throw new AppError(400, "INPUT_TIDAK_VALID", "stok wajib bilangan bulat nol atau lebih");
+  }
+
+  return stok;
+}
+
+async function ensureSchema(pool) {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS categories (
+      id BIGSERIAL PRIMARY KEY,
+      nama TEXT NOT NULL UNIQUE
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS items (
+      id BIGSERIAL PRIMARY KEY,
+      category_id BIGINT NOT NULL REFERENCES categories (id),
+      nama TEXT NOT NULL UNIQUE,
+      harga_idr INTEGER NOT NULL CHECK (harga_idr > 0),
+      stok INTEGER NOT NULL CHECK (stok >= 0),
+      deskripsi TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  await pool.query(`
+    INSERT INTO categories (nama)
+    VALUES ('snack'), ('skincare'), ('fashion')
+    ON CONFLICT (nama) DO NOTHING
+  `);
+
+  await pool.query(`
+    INSERT INTO items (category_id, nama, harga_idr, stok, deskripsi)
+    SELECT c.id, seed.nama, seed.harga_idr, seed.stok, seed.deskripsi
+    FROM (
+      VALUES
+        ('snack', 'KitKat Matcha', 120000, 10, 'Camilan khas Jepang untuk titip beli.'),
+        ('skincare', 'Sunscreen Biore UV', 145000, 8, 'Skincare populer dengan proteksi UV.'),
+        ('fashion', 'Totebag Tokyo', 175000, 5, 'Totebag casual untuk mahasiswa.')
+    ) AS seed(kategori, nama, harga_idr, stok, deskripsi)
+    JOIN categories c ON c.nama = seed.kategori
+    ON CONFLICT (nama) DO NOTHING
+  `);
+}
+
+function createDeps(overrides = {}) {
+  return {
+    pool: overrides.pool || new Pool({ connectionString: process.env.DATABASE_URL }),
+    redis: overrides.redis || createClient({ url: process.env.REDIS_URL }),
+  };
+}
+
+async function getCachedJson(redis, key) {
+  const raw = await redis.get(key);
+  return raw ? JSON.parse(raw) : null;
+}
+
+async function setCachedJson(redis, key, value) {
+  await redis.set(key, JSON.stringify(value), { EX: 60 });
+}
+
+async function invalidateCatalogCache(redis) {
+  const keys = await redis.keys("catalog:*");
+  if (keys.length > 0) {
+    await redis.del(keys);
+  }
+}
+
+async function syncStockKey(redis, itemId, stok) {
+  await redis.set(`stock:${itemId}`, String(stok));
+}
+
+async function warmStockKeys(pool, redis) {
+  const result = await pool.query(`SELECT id, stok FROM items`);
+  await Promise.all(result.rows.map((row) => syncStockKey(redis, row.id, row.stok)));
+}
+
+function createApp(deps) {
+  const app = express();
+  app.use(express.json());
+
+  app.get("/health", (_req, res) => res.json({ status: "ok", service: "catalog-service" }));
+
+  app.get("/", async (req, res, next) => {
+    try {
+      const page = Math.max(1, parsePositiveInt(req.query.page, 1));
+      const limit = Math.min(100, Math.max(1, parsePositiveInt(req.query.limit, 20)));
+      const offset = (page - 1) * limit;
+      const kategori = typeof req.query.kategori === "string" ? req.query.kategori.trim().toLowerCase() : "";
+      const cacheKey = `catalog:list:${kategori || 'all'}:${page}:${limit}`;
+      const cached = await getCachedJson(deps.redis, cacheKey);
+      if (cached) {
+        return res.json(cached);
+      }
+
+      const whereClause = kategori ? "WHERE c.nama = $1" : "";
+      const listParams = kategori ? [kategori, limit, offset] : [limit, offset];
+      const totalParams = kategori ? [kategori] : [];
+      const listQuery = `
+        SELECT i.id, i.nama, i.harga_idr, i.stok, i.deskripsi, i.created_at, c.nama AS kategori
+        FROM items i
+        JOIN categories c ON c.id = i.category_id
+        ${whereClause}
+        ORDER BY i.id
+        LIMIT $${kategori ? 2 : 1} OFFSET $${kategori ? 3 : 2}
+      `;
+      const totalQuery = `
+        SELECT COUNT(*)::int AS total
+        FROM items i
+        JOIN categories c ON c.id = i.category_id
+        ${whereClause}
+      `;
+      const [listResult, totalResult] = await Promise.all([
+        deps.pool.query(listQuery, listParams),
+        deps.pool.query(totalQuery, totalParams),
+      ]);
+
+      const payload = {
+        data: listResult.rows.map(normalizeItem),
+        page,
+        limit,
+        total: totalResult.rows[0].total,
+      };
+      await setCachedJson(deps.redis, cacheKey, payload);
+      return res.json(payload);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  app.get("/:id", async (req, res, next) => {
+    try {
+      const itemId = Number(req.params.id);
+      if (!Number.isInteger(itemId) || itemId < 1) {
+        throw new AppError(400, "INPUT_TIDAK_VALID", "id item wajib bilangan bulat positif");
+      }
+
+      const cacheKey = `catalog:item:${itemId}`;
+      const cached = await getCachedJson(deps.redis, cacheKey);
+      if (cached) {
+        return res.json(cached);
+      }
+
+      const result = await deps.pool.query(
+        `
+          SELECT i.id, i.nama, i.harga_idr, i.stok, i.deskripsi, i.created_at, c.nama AS kategori
+          FROM items i
+          JOIN categories c ON c.id = i.category_id
+          WHERE i.id = $1
+        `,
+        [itemId],
+      );
+      if (result.rows.length === 0) {
+        throw new AppError(404, "ITEM_TIDAK_ADA", "Item tidak ditemukan");
+      }
+
+      const payload = normalizeItem(result.rows[0]);
+      await setCachedJson(deps.redis, cacheKey, payload);
+      await syncStockKey(deps.redis, payload.id, payload.stok);
+      return res.json(payload);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  app.post("/", async (req, res, next) => {
+    try {
+      const payload = validateCreateItem(req.body);
+      const client = await deps.pool.connect();
+      try {
+        await client.query("BEGIN");
+        const categoryResult = await client.query(
+          `
+            INSERT INTO categories (nama)
+            VALUES ($1)
+            ON CONFLICT (nama) DO UPDATE SET nama = EXCLUDED.nama
+            RETURNING id, nama
+          `,
+          [payload.kategori],
+        );
+        const categoryId = categoryResult.rows[0].id;
+        const insertResult = await client.query(
+          `
+            INSERT INTO items (category_id, nama, harga_idr, stok, deskripsi)
+            VALUES ($1, $2, $3, $4, $5)
+            RETURNING id, nama, harga_idr, stok, deskripsi, created_at
+          `,
+          [categoryId, payload.nama, payload.hargaIdr, payload.stok, payload.deskripsi],
+        );
+        await client.query("COMMIT");
+
+        const item = normalizeItem({ ...insertResult.rows[0], kategori: payload.kategori });
+        await syncStockKey(deps.redis, item.id, item.stok);
+        await invalidateCatalogCache(deps.redis);
+        return res.status(201).json(item);
+      } catch (error) {
+        await client.query("ROLLBACK");
+        if (error.code === "23505") {
+          throw new AppError(409, "ITEM_SUDAH_ADA", "Nama item sudah digunakan");
+        }
+        throw error;
+      } finally {
+        client.release();
+      }
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  app.patch("/:id/stok", async (req, res, next) => {
+    try {
+      const itemId = Number(req.params.id);
+      if (!Number.isInteger(itemId) || itemId < 1) {
+        throw new AppError(400, "INPUT_TIDAK_VALID", "id item wajib bilangan bulat positif");
+      }
+
+      const stok = validateStock(req.body);
+      const result = await deps.pool.query(
+        `
+          UPDATE items i
+          SET stok = $2
+          FROM categories c
+          WHERE i.category_id = c.id AND i.id = $1
+          RETURNING i.id, i.nama, i.harga_idr, i.stok, i.deskripsi, i.created_at, c.nama AS kategori
+        `,
+        [itemId, stok],
+      );
+      if (result.rows.length === 0) {
+        throw new AppError(404, "ITEM_TIDAK_ADA", "Item tidak ditemukan");
+      }
+
+      const item = normalizeItem(result.rows[0]);
+      await syncStockKey(deps.redis, item.id, item.stok);
+      await invalidateCatalogCache(deps.redis);
+      return res.json(item);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  app.use((error, _req, res, _next) => {
+    if (error instanceof AppError) {
+      return res.status(error.status).json(errorBody(error.code, error.message));
+    }
+
+    return res.status(500).json(errorBody("GAGAL", "Terjadi galat internal"));
+  });
+
+  return app;
+}
+
+async function start() {
+  const deps = createDeps();
+  await deps.redis.connect();
+  await ensureSchema(deps.pool);
+  await warmStockKeys(deps.pool, deps.redis);
+  const app = createApp(deps);
+  app.listen(DEFAULT_PORT, () => console.log(`Catalog Service jalan di port ${DEFAULT_PORT}`));
+}
+
+if (require.main === module) {
+  start().catch((error) => {
+    console.error("Gagal menjalankan catalog-service", error);
+    process.exit(1);
+  });
+}
+
+module.exports = {
+  AppError,
+  createApp,
+  createDeps,
+  ensureSchema,
+  normalizeItem,
+};

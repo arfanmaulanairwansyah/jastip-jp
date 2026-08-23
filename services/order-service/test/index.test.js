@@ -124,8 +124,14 @@ function createAppForTest({ stock = 5 } = {}) {
       return { data: { id: 10, nama: "KitKat Matcha", harga_idr: 120000 } };
     },
   };
+  const userClient = {
+    async get(path) {
+      assert.equal(path, "/users/7");
+      return { data: { id: 7, nama: "Agus" } };
+    },
+  };
 
-  return createApp({ pool: repo.pool, redis, catalogClient, userClient: null });
+  return createApp({ pool: repo.pool, redis, catalogClient, userClient });
 }
 
 test("computePricing calculates subtotal, fee, shipping, and total", () => {
