@@ -1,0 +1,84 @@
+@baseUrl = http://localhost:8080
+@adminToken = ganti_dengan_token_admin
+@buyerToken = ganti_dengan_token_pembeli
+
+### Health check nginx
+GET {{baseUrl}}/health
+
+### Register pembeli
+POST {{baseUrl}}/api/auth/register
+Content-Type: application/json
+
+{
+  "nama": "Muh Agus Salim",
+  "email": "agus@example.com",
+  "no_wa": "081234567890",
+  "password": "password123"
+}
+
+### Login pembeli
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "agus@example.com",
+  "password": "password123"
+}
+
+### List katalog
+GET {{baseUrl}}/api/catalog?page=1&limit=20
+
+### Detail item katalog
+GET {{baseUrl}}/api/catalog/1
+
+### Tambah item katalog sebagai admin
+POST {{baseUrl}}/api/catalog
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "nama": "Tokyo Banana Box",
+  "kategori": "snack",
+  "harga_idr": 150000,
+  "stok": 12,
+  "deskripsi": "Oleh-oleh populer dari Jepang"
+}
+
+### Update stok item sebagai admin
+PATCH {{baseUrl}}/api/catalog/1/stok
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "stok": 7
+}
+
+### Buat order baru
+POST {{baseUrl}}/api/orders
+Authorization: Bearer {{buyerToken}}
+Idempotency-Key: order-001
+Content-Type: application/json
+
+{
+  "user_id": 1,
+  "item_id": 1,
+  "qty": 1,
+  "shipping_weight_kg": 1.2
+}
+
+### Ambil detail order
+GET {{baseUrl}}/api/orders/1
+Authorization: Bearer {{buyerToken}}
+
+### Riwayat order per user
+GET {{baseUrl}}/api/orders?user_id=1&page=1&limit=10
+Authorization: Bearer {{buyerToken}}
+
+### Ubah status order sebagai admin
+PATCH {{baseUrl}}/api/orders/1/status
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "status": "DIKIRIM"
+}
