@@ -85,71 +85,203 @@ export default function OrderScreen({ route }) {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-        <Text style={styles.subtitle}>
-          Isi form berikut dan kami akan konfirmasi via WhatsApp dalam 1×24 jam.
-        </Text>
-
-        <Field label="Nama Lengkap *" value={form.nama} onChangeText={set('nama')} placeholder="Arfan Maulana" />
-        <Field label="Nomor WhatsApp *" value={form.whatsapp} onChangeText={set('whatsapp')} placeholder="+62 812-xxxx-xxxx" keyboardType="phone-pad" />
-        <Field label="Alamat Pengiriman *" value={form.alamat} onChangeText={set('alamat')} placeholder="Jl. Sudirman No.1, Jakarta..." multiline />
-        <Field label="Nama / Deskripsi Produk *" value={form.produk} onChangeText={set('produk')} placeholder="Kit Kat Matcha 12 pcs" />
-        <Field label="URL Produk (opsional)" value={form.url} onChangeText={set('url')} placeholder="https://www.amazon.co.jp/..." keyboardType="url" />
-        <Field label="Catatan Tambahan" value={form.catatan} onChangeText={set('catatan')} placeholder="Minta wrapping khusus, dll." multiline />
-
-        <View style={styles.infoBox}>
-          <Ionicons name="information-circle-outline" size={16} color={colors.navy} />
-          <Text style={styles.infoText}>
-            Harga final akan dikonfirmasi setelah kami cek ketersediaan di Jepang.
+        <View style={styles.heroCard}>
+          <View style={styles.heroBadge}>
+            <Ionicons name="sparkles-outline" size={14} color={colors.red} />
+            <Text style={styles.heroBadgeText}>Form Pemesanan</Text>
+          </View>
+          <Text style={styles.heroTitle}>Titip barang Jepang jadi lebih mudah</Text>
+          <Text style={styles.subtitle}>
+            Isi data di bawah. Tim kami akan konfirmasi via WhatsApp dalam 1×24 jam dengan estimasi harga lengkap.
           </Text>
         </View>
 
-        <TouchableOpacity
-          style={[styles.btnPrimary, loading && styles.btnDisabled]}
-          onPress={handleSubmit}
-          disabled={loading}
-        >
-          <Text style={styles.btnPrimaryText}>
-            {loading ? 'Mengirim...' : 'Kirim Pesanan →'}
-          </Text>
-        </TouchableOpacity>
+        <View style={styles.formCard}>
+          <Text style={styles.sectionTitle}>Data Penerima</Text>
+          <Field
+            label="Nama Lengkap *"
+            value={form.nama}
+            onChangeText={set('nama')}
+            placeholder="Arfan Maulana"
+            icon="person-outline"
+          />
+          <Field
+            label="Nomor WhatsApp *"
+            value={form.whatsapp}
+            onChangeText={set('whatsapp')}
+            placeholder="+62 812-xxxx-xxxx"
+            keyboardType="phone-pad"
+            icon="logo-whatsapp"
+          />
+          <Field
+            label="Alamat Pengiriman *"
+            value={form.alamat}
+            onChangeText={set('alamat')}
+            placeholder="Jl. Sudirman No.1, Jakarta..."
+            multiline
+            icon="location-outline"
+          />
+
+          <Text style={styles.sectionTitle}>Detail Titipan</Text>
+          <Field
+            label="Nama / Deskripsi Produk *"
+            value={form.produk}
+            onChangeText={set('produk')}
+            placeholder="Kit Kat Matcha 12 pcs"
+            icon="cube-outline"
+          />
+          <Field
+            label="URL Produk (opsional)"
+            value={form.url}
+            onChangeText={set('url')}
+            placeholder="https://www.amazon.co.jp/..."
+            keyboardType="url"
+            icon="link-outline"
+          />
+          <Field
+            label="Catatan Tambahan"
+            value={form.catatan}
+            onChangeText={set('catatan')}
+            placeholder="Minta wrapping khusus, dll."
+            multiline
+            icon="document-text-outline"
+          />
+
+          <View style={styles.infoBox}>
+            <Ionicons name="information-circle-outline" size={16} color={colors.navy} />
+            <Text style={styles.infoText}>
+              Harga final akan dikonfirmasi setelah kami cek ketersediaan produk di Jepang.
+            </Text>
+          </View>
+
+          <TouchableOpacity
+            style={[styles.btnPrimary, loading && styles.btnDisabled]}
+            onPress={handleSubmit}
+            disabled={loading}
+          >
+            <Ionicons name="paper-plane-outline" size={16} color={colors.white} />
+            <Text style={styles.btnPrimaryText}>
+              {loading ? 'Mengirim...' : 'Kirim Pesanan'}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
-function Field({ label, value, onChangeText, placeholder, keyboardType, multiline }) {
+function Field({ label, value, onChangeText, placeholder, keyboardType, multiline, icon }) {
   return (
     <View style={styles.field}>
       <Text style={styles.fieldLabel}>{label}</Text>
-      <TextInput
-        style={[styles.input, multiline && styles.inputMulti]}
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor={colors.textMuted}
-        keyboardType={keyboardType || 'default'}
-        multiline={multiline}
-        numberOfLines={multiline ? 3 : 1}
-        textAlignVertical={multiline ? 'top' : 'center'}
-      />
+      <View style={[styles.inputWrap, multiline && styles.inputWrapMulti]}>
+        <Ionicons style={styles.inputIcon} name={icon || 'create-outline'} size={16} color={colors.textMuted} />
+        <TextInput
+          style={[styles.input, multiline && styles.inputMulti]}
+          value={value}
+          onChangeText={onChangeText}
+          placeholder={placeholder}
+          placeholderTextColor={colors.textMuted}
+          keyboardType={keyboardType || 'default'}
+          multiline={multiline}
+          numberOfLines={multiline ? 3 : 1}
+          textAlignVertical={multiline ? 'top' : 'center'}
+        />
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F7F6F3' },
-  content: { padding: 16, paddingBottom: 40 },
-  subtitle: { fontSize: 13, color: colors.textMuted, marginBottom: 20, lineHeight: 20 },
+  content: { padding: 16, paddingBottom: 44 },
+
+  heroCard: {
+    backgroundColor: '#FFF7ED',
+    borderWidth: 1,
+    borderColor: '#FCD9C6',
+    borderRadius: 18,
+    padding: 16,
+    marginBottom: 16,
+  },
+  heroBadge: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#FEEDE3',
+    borderWidth: 1,
+    borderColor: '#F9C7A9',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    marginBottom: 10,
+  },
+  heroBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    color: colors.red,
+    letterSpacing: 0.5,
+  },
+  heroTitle: {
+    fontSize: 21,
+    fontWeight: '800',
+    color: colors.text,
+    lineHeight: 30,
+    marginBottom: 8,
+  },
+  subtitle: { fontSize: 13, color: colors.textMuted, lineHeight: 20 },
+
+  formCard: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 18,
+    backgroundColor: '#FFFFFF',
+    padding: 16,
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 12,
+    elevation: 2,
+  },
+  sectionTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: colors.navy,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 12,
+    marginTop: 2,
+  },
 
   field: { marginBottom: 16 },
   fieldLabel: { fontSize: 12, fontWeight: '700', color: colors.text, marginBottom: 7, textTransform: 'uppercase', letterSpacing: 0.4 },
-  input: {
-    borderWidth: 1, borderColor: colors.border, borderRadius: 12,
-    backgroundColor: colors.white, paddingHorizontal: 14, paddingVertical: 12,
-    fontSize: 14, color: colors.text,
-    shadowColor: '#000', shadowOpacity: 0.03, shadowOffset: { width: 0, height: 1 }, shadowRadius: 2, elevation: 1,
+
+  inputWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    backgroundColor: '#FBFBFA',
+    paddingHorizontal: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.02,
+    shadowOffset: { width: 0, height: 1 },
+    shadowRadius: 2,
+    elevation: 1,
   },
-  inputMulti: { minHeight: 84, paddingTop: 12 },
+  inputWrapMulti: { alignItems: 'flex-start', paddingTop: 10 },
+  inputIcon: { marginRight: 9, marginTop: 2 },
+  input: {
+    flex: 1,
+    backgroundColor: 'transparent',
+    paddingVertical: 12,
+    fontSize: 14,
+    color: colors.text,
+  },
+  inputMulti: { minHeight: 84, paddingTop: 2 },
 
   infoBox: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10,
@@ -160,7 +292,7 @@ const styles = StyleSheet.create({
 
   btnPrimary: {
     backgroundColor: colors.red, borderRadius: 14,
-    paddingVertical: 16, alignItems: 'center',
+    paddingVertical: 16, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8,
     shadowColor: colors.red, shadowOpacity: 0.35, shadowOffset: { width: 0, height: 4 }, shadowRadius: 8, elevation: 4,
   },
   btnDisabled: { opacity: 0.6 },
