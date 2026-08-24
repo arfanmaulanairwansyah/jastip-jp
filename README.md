@@ -62,7 +62,7 @@ Script ini melakukan: `docker compose down -v` → build ulang → tunggu sehat 
 ## Topologi Jaringan
 
 ```
-Browser
+Web Browser / Mobile App
   │
   ▼ port 8080
 [nginx] ─── load balancer (least_conn)
@@ -71,7 +71,7 @@ Browser
 [gateway] ─── routing API
   ├── /api/auth    → user-service:3001
   ├── /api/catalog → catalog-service:3002
-  └── /api/orders  → order-service:3003
+  └── /api/orders  → order-service:3003 (protected)
          │               │               │
     [user-db]      [catalog-db]     [order-db]
     PostgreSQL      PostgreSQL       PostgreSQL
@@ -81,6 +81,8 @@ Browser
 ```
 
 Hanya `nginx` (port 8080) yang diekspos ke luar. Semua service lain hanya diakses lewat Docker internal network.
+
+Dokumen arsitektur lengkap dan versi as-is terbaru ada di `docs/ARCHITECTURE.md`.
 
 ---
 
@@ -115,6 +117,7 @@ Catatan backend saat ini:
 - `catalog-service` sudah mendukung list, detail, tambah item, update stok, dan cache Redis.
 - `order-service` sudah mendukung checkout atomik, idempotency key, riwayat order, dan update status.
 - `gateway` sudah memproteksi route order dan route admin dengan verifikasi JWT.
+- Semua endpoint `/api/orders/*` wajib Bearer token valid dari `POST /api/auth/login`.
 
 ---
 

@@ -10,6 +10,16 @@ const CATALOG_SERVICE_URL = process.env.CATALOG_SERVICE_URL || "http://catalog-s
 const ORDER_SERVICE_URL = process.env.ORDER_SERVICE_URL || "http://order-service:3003";
 const JWT_SECRET = process.env.JWT_SECRET || "ganti_dengan_secret_minimal_32_karakter_ini";
 
+app.use((req, res, next) => {
+	res.setHeader("Access-Control-Allow-Origin", "*");
+	res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
+	res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+	if (req.method === "OPTIONS") {
+		return res.sendStatus(204);
+	}
+	return next();
+});
+
 function errorBody(code, message) {
 	return { error: { code, message } };
 }
