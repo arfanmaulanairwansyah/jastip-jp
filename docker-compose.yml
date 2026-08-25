@@ -34,6 +34,8 @@ services:
       USER_SERVICE_URL: http://user-service:3001
       CATALOG_SERVICE_URL: http://catalog-service:3002
       ORDER_SERVICE_URL: http://order-service:3003
+      # harus sama dengan JWT_SECRET di user-service — gateway verifikasi token ini
+      JWT_SECRET: ${JWT_SECRET:-ganti_dengan_secret_minimal_32_karakter_ini}
     depends_on:
       user-service:
         condition: service_healthy

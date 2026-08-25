@@ -77,20 +77,20 @@ Peran ini sudah menghasilkan dua deliverable inti; sisanya bersifat menjaga kons
 ## 3. Infrastructure & DevOps
 
 ### 3.1 Fase awal (paralel dengan Arsitek, sebelum Backend mulai)
-- [ ] Buat struktur folder repo sesuai §12 `ARCHITECTURE.md`
-- [ ] `Dockerfile` untuk tiap service (`user-service`, `catalog-service`, `order-service`, `gateway`) — boleh masih kosong/stub isi endpoint dummy dulu
-- [ ] `docker-compose.yml` sesuai topologi §10: 4 service app + Redis + 3 database, network internal, hanya gateway yang expose port ke luar
-- [ ] File `.env.example` per service (jangan commit `.env` asli)
+- [x] Buat struktur folder repo sesuai §12 `ARCHITECTURE.md`
+- [x] `Dockerfile` untuk tiap service (`user-service`, `catalog-service`, `order-service`, `gateway`) — node:22-alpine, npm ci --omit=dev
+- [x] `docker-compose.yml` sesuai topologi §10: nginx + gateway + 3 service + Redis + 3 database, internal network, hanya nginx yang expose port ke luar (8080)
+- [x] File `.env.example` per service (termasuk JWT_SECRET di gateway & user-service)
 
 ### 3.2 Fase implementasi (paralel dengan Backend)
-- [ ] Setup Redis container + volume persist (opsional untuk demo)
-- [ ] Setup 3 container PostgreSQL terpisah dengan volume masing-masing
-- [ ] Pastikan health check antar service (`depends_on` + `healthcheck` di compose)
-- [ ] Uji `docker compose up` end-to-end setelah Backend mengisi service satu per satu
+- [x] Setup Redis container + volume persist + healthcheck (redis-cli ping)
+- [x] Setup 3 container PostgreSQL terpisah dengan volume + healthcheck (pg_isready) masing-masing
+- [x] Health check semua service: `depends_on` + `condition: service_healthy` + `start_period`
+- [x] Uji `docker compose up` end-to-end — semua service sehat, JWT flow berfungsi
 
 ### 3.3 Fase akhir
-- [ ] Dokumentasikan cara menjalankan sistem (`docker compose up -d`) — masuk ke README bersama QA
-- [ ] Siapkan skrip reset data demo (`docker compose down -v && docker compose up`) untuk kebutuhan presentasi
+- [x] Dokumentasikan cara menjalankan sistem di README.md (Codespaces, scaling, troubleshooting)
+- [x] Siapkan skrip reset data demo `reset.sh` (`docker compose down -v` → build → tunggu healthy → verify)
 
 ---
 

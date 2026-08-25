@@ -6,23 +6,28 @@ Proyek tugas kuliah / portofolio kelompok: web jastip barang dari Jepang ke Indo
 
 ```
 titip-jp/
-├── gateway/                  # API Gateway — routing ke 3 service
+├── gateway/                  # API Gateway — routing + JWT verification
 │   ├── Dockerfile
 │   ├── .env.example
 │   └── src/index.js
 ├── services/
-│   ├── user-service/         # Auth & profil pembeli
-│   ├── catalog-service/      # Katalog barang & stok
-│   └── order-service/        # Pemesanan & kalkulasi biaya
+│   ├── user-service/         # Auth & profil pembeli (register, login JWT)
+│   ├── catalog-service/      # Katalog barang, stok, cache Redis, import Excel
+│   └── order-service/        # Checkout atomik, kalkulasi biaya, status tracking
+├── mobile/                   # React Native / Expo — aplikasi mobile
 ├── nginx/
-│   └── nginx.conf            # Load balancer (Lapisan 2)
+│   └── nginx.conf            # Load balancer least_conn (Lapisan 2)
 ├── frontend/
-│   └── index.html            # UI statis
-├── docker-compose.yml        # Orkestrasi lengkap (9 service)
+│   └── index.html            # UI web statis
+├── scripts/
+│   └── import_jastip_excel.py  # Skrip impor dataset Excel ke catalog-service
+├── docker-compose.yml        # Orkestrasi lengkap (nginx + 4 service + Redis + 3 DB)
 ├── reset.sh                  # Skrip reset demo (Codespaces/Linux)
+├── AI-LOG.md                 # Catatan penggunaan AI selama proyek
 └── docs/
     ├── ARCHITECTURE.md
-    └── TASKS.md
+    ├── TASKS.md
+    └── backend-api.http      # Contoh request semua endpoint
 ```
 
 ## Cara Menjalankan di GitHub Codespaces
