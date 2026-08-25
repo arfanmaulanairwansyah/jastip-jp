@@ -1,5 +1,6 @@
 const express = require("express");
 const jwt = require("jsonwebtoken");
+const path = require("path");
 const { createProxyMiddleware } = require("http-proxy-middleware");
 
 const app = express();
@@ -9,6 +10,9 @@ const USER_SERVICE_URL = process.env.USER_SERVICE_URL || "http://user-service:30
 const CATALOG_SERVICE_URL = process.env.CATALOG_SERVICE_URL || "http://catalog-service:3002";
 const ORDER_SERVICE_URL = process.env.ORDER_SERVICE_URL || "http://order-service:3003";
 const JWT_SECRET = process.env.JWT_SECRET || "ganti_dengan_secret_minimal_32_karakter_ini";
+
+// Sajikan frontend statis sebelum CORS agar assets langsung dilayani
+app.use(express.static(path.join(__dirname, "../public")));
 
 app.use((req, res, next) => {
 	res.setHeader("Access-Control-Allow-Origin", "*");

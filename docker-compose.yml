@@ -29,6 +29,8 @@ services:
   # ─── API Gateway ──────────────────────────────────────────────────────────
   gateway:
     build: ./gateway
+    volumes:
+      - ./frontend:/app/public:ro
     environment:
       PORT: 3000
       USER_SERVICE_URL: http://user-service:3001
