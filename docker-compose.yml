@@ -1,13 +1,17 @@
 # Topologi sesuai docs/ARCHITECTURE.md §10
-# Lapisan 1: Microservices + healthcheck
-# Lapisan 2: nginx load balancer di depan gateway (port 8080)
+# Lapisan 1  : Microservices + healthcheck
+# Lapisan 1.5: lb — nginx internal load balancer (user/catalog/order service cluster)
+# Lapisan 2  : nginx — public load balancer di depan gateway (port 8080)
 #
 # Cara menjalankan:
 #   docker compose up -d --build
 #   curl http://localhost:8080/health
 #
-# Scale gateway:
+# Scale tiap service (lb otomatis mendistribusikan beban via Docker DNS round-robin):
 #   docker compose up -d --scale gateway=3
+#   docker compose up -d --scale user-service=3
+#   docker compose up -d --scale catalog-service=3
+#   docker compose up -d --scale order-service=3
 
 services:
 
@@ -26,6 +30,29 @@ services:
     networks:
       - internal
 
+  # ─── Lapisan 1.5: Internal Load Balancer ────────────────────────────────
+  lb:
+    image: nginx:1.27-alpine
+    command: /bin/sh -c "rm -f /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"
+    volumes:
+      - ./nginx/lb.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      user-service:
+        condition: service_healthy
+      catalog-service:
+        condition: service_healthy
+      order-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - internal
+
   # ─── API Gateway ──────────────────────────────────────────────────────────
   gateway:
     build: ./gateway
@@ -33,17 +60,13 @@ services:
       - ./frontend:/app/public:ro
     environment:
       PORT: 3000
-      USER_SERVICE_URL: http://user-service:3001
-      CATALOG_SERVICE_URL: http://catalog-service:3002
-      ORDER_SERVICE_URL: http://order-service:3003
+      USER_SERVICE_URL: http://lb:3001
+      CATALOG_SERVICE_URL: http://lb:3002
+      ORDER_SERVICE_URL: http://lb:3003
       # harus sama dengan JWT_SECRET di user-service — gateway verifikasi token ini
       JWT_SECRET: ${JWT_SECRET:-ganti_dengan_secret_minimal_32_karakter_ini}
     depends_on:
-      user-service:
-        condition: service_healthy
-      catalog-service:
-        condition: service_healthy
-      order-service:
+      lb:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:3000/health || exit 1"]
@@ -103,8 +126,8 @@ services:
       PORT: 3003
       DATABASE_URL: postgres://postgres:postgres@order-db:5432/order_db
       REDIS_URL: redis://redis:6379
-      USER_SERVICE_URL: http://user-service:3001
-      CATALOG_SERVICE_URL: http://catalog-service:3002
+      USER_SERVICE_URL: http://lb:3001
+      CATALOG_SERVICE_URL: http://lb:3002
     depends_on:
       order-db:
         condition: service_healthy

@@ -16,12 +16,13 @@ titip-jp/
 │   └── order-service/        # Checkout atomik, kalkulasi biaya, status tracking
 ├── mobile/                   # React Native / Expo — aplikasi mobile
 ├── nginx/
-│   └── nginx.conf            # Load balancer least_conn (Lapisan 2)
+│   ├── nginx.conf            # Load balancer publik least_conn (Lapisan 2)
+│   └── lb.conf               # Load balancer internal per-service (Lapisan 1.5)
 ├── frontend/
 │   └── index.html            # UI web statis
 ├── scripts/
 │   └── import_jastip_excel.py  # Skrip impor dataset Excel ke catalog-service
-├── docker-compose.yml        # Orkestrasi lengkap (nginx + 4 service + Redis + 3 DB)
+├── docker-compose.yml        # Orkestrasi lengkap (nginx + lb + 4 service + Redis + 3 DB)
 ├── reset.sh                  # Skrip reset demo (Codespaces/Linux)
 ├── AI-LOG.md                 # Catatan penggunaan AI selama proyek
 └── docs/
@@ -64,19 +65,107 @@ Script ini melakukan: `docker compose down -v` → build ulang → tunggu sehat 
 
 ---
 
+## Referensi Perintah Docker
+
+### Menjalankan sistem
+
+```bash
+# Pertama kali / setelah clone repo — build image lalu jalankan semua
+docker compose up -d --build
+
+# Jalankan tanpa build ulang (kalau image sudah ada)
+docker compose up -d
+```
+
+### Mengecek status
+
+```bash
+# Lihat semua container + status healthy/running
+docker compose ps
+
+# Lihat log semua service secara real-time
+docker compose logs -f
+
+# Lihat log satu service saja
+docker compose logs -f gateway
+docker compose logs -f user-service
+docker compose logs -f catalog-service
+docker compose logs -f order-service
+docker compose logs -f nginx
+```
+
+### Menghentikan sistem
+
+```bash
+# Hentikan semua container (data tetap tersimpan)
+docker compose down
+
+# Hentikan + hapus semua data/volume (mulai dari nol)
+docker compose down -v
+```
+
+### Rebuild satu service (tanpa restart yang lain)
+
+```bash
+docker compose build gateway
+docker compose up -d gateway
+
+docker compose build catalog-service
+docker compose up -d catalog-service
+```
+
+### Verifikasi endpoint API
+
+```bash
+# Health check
+curl http://localhost:8080/health
+
+# Katalog barang
+curl http://localhost:8080/api/catalog
+
+# Register user
+curl -X POST http://localhost:8080/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"nama":"Nama Kamu","email":"kamu@email.com","password":"password123","no_wa":"08123"}'
+
+# Login — hasilkan JWT
+curl -X POST http://localhost:8080/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"kamu@email.com","password":"password123"}'
+```
+
+### Troubleshoot cepat
+
+```bash
+# Lihat semua image yang sudah di-build
+docker images | grep jastip-jp
+
+# Masuk ke dalam container (untuk debug)
+docker compose exec gateway sh
+docker compose exec catalog-db psql -U postgres catalog_db
+
+# Cek jaringan internal Docker
+docker network inspect jastip-jp_internal
+```
+
+---
+
 ## Topologi Jaringan
 
 ```
 Web Browser / Mobile App
   │
   ▼ port 8080
-[nginx] ─── load balancer (least_conn)
+[nginx] ─── load balancer publik (least_conn)       ← Lapisan 2
   │
   ▼ port 3000 (internal)
-[gateway] ─── routing API
-  ├── /api/auth    → user-service:3001
-  ├── /api/catalog → catalog-service:3002
-  └── /api/orders  → order-service:3003 (protected)
+[gateway] ─── routing API + JWT verification
+  │
+  ▼ (internal via lb)
+[lb] ─── load balancer internal per-service (least_conn)  ← Lapisan 1.5
+  ├── :3001 → user-service cluster    (N replika)
+  ├── :3002 → catalog-service cluster  (N replika)
+  └── :3003 → order-service cluster    (N replika)
          │               │               │
     [user-db]      [catalog-db]     [order-db]
     PostgreSQL      PostgreSQL       PostgreSQL
@@ -86,17 +175,42 @@ Web Browser / Mobile App
 ```
 
 Hanya `nginx` (port 8080) yang diekspos ke luar. Semua service lain hanya diakses lewat Docker internal network.
+`lb` menangani load balancing di level service — saat satu replika down, nginx langsung failover ke replika lain.
 
 Dokumen arsitektur lengkap dan versi as-is terbaru ada di `docs/ARCHITECTURE.md`.
 
 ---
 
-## Scale Horizontal (Demo Lapisan 2)
+## Scale Horizontal (Load Balancer per Layer)
+
+### Scale gateway (Lapisan 2 — nginx publik)
 
 ```bash
-# Jalankan 3 instance gateway — nginx otomatis distribusikan beban
+# 3 instance gateway — nginx publik otomatis distribusikan beban
 docker compose up -d --scale gateway=3
 docker compose ps
+```
+
+### Scale tiap microservice (Lapisan 1.5 — lb internal)
+
+```bash
+# Scale masing-masing service — lb mendistribusikan beban via Docker DNS round-robin
+docker compose up -d --scale user-service=3
+docker compose up -d --scale catalog-service=3
+docker compose up -d --scale order-service=3
+
+# Verifikasi semua replika running
+docker compose ps
+```
+
+### Scale semua sekaligus
+
+```bash
+docker compose up -d \
+  --scale gateway=2 \
+  --scale user-service=2 \
+  --scale catalog-service=2 \
+  --scale order-service=2
 ```
 
 ---

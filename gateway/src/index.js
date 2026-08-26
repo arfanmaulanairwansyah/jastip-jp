@@ -51,8 +51,8 @@ function requireAdmin(req, res, next) {
 	return next();
 }
 
-function proxyOptions(target) {
-	return {
+function proxyOptions(target, pathPrefix) {
+	const opts = {
 		target,
 		changeOrigin: true,
 		on: {
@@ -66,15 +66,21 @@ function proxyOptions(target) {
 			},
 		},
 	};
+	// app.post()/app.patch() tidak strip path prefix (berbeda dengan app.use())
+	// pathRewrite diperlukan agar request sampai ke handler yang benar di service
+	if (pathPrefix) {
+		opts.pathRewrite = { [`^${pathPrefix}`]: "" };
+	}
+	return opts;
 }
 
 app.get("/health", (_req, res) => res.json({ status: "ok", service: "gateway" }));
 
 app.use("/api/auth", createProxyMiddleware(proxyOptions(USER_SERVICE_URL)));
-app.post("/api/catalog", authenticate, requireAdmin, createProxyMiddleware(proxyOptions(CATALOG_SERVICE_URL)));
-app.patch("/api/catalog/:id/stok", authenticate, requireAdmin, createProxyMiddleware(proxyOptions(CATALOG_SERVICE_URL)));
+app.post("/api/catalog", authenticate, requireAdmin, createProxyMiddleware(proxyOptions(CATALOG_SERVICE_URL, "/api/catalog")));
+app.patch("/api/catalog/:id/stok", authenticate, requireAdmin, createProxyMiddleware(proxyOptions(CATALOG_SERVICE_URL, "/api/catalog")));
 app.use("/api/catalog", createProxyMiddleware(proxyOptions(CATALOG_SERVICE_URL)));
-app.patch("/api/orders/:id/status", authenticate, requireAdmin, createProxyMiddleware(proxyOptions(ORDER_SERVICE_URL)));
+app.patch("/api/orders/:id/status", authenticate, requireAdmin, createProxyMiddleware(proxyOptions(ORDER_SERVICE_URL, "/api/orders")));
 app.use("/api/orders", authenticate, createProxyMiddleware(proxyOptions(ORDER_SERVICE_URL)));
 
 app.listen(PORT, () => console.log(`Gateway jalan di port ${PORT}`));

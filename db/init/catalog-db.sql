@@ -17,25 +17,29 @@ CREATE INDEX IF NOT EXISTS idx_items_category ON items(category_id);
 
 -- Kategori
 INSERT INTO categories (nama) VALUES
-  ('Skincare'), ('Snack'), ('Fashion'), ('Koleksi'),
-  ('Elektronik'), ('Kosmetik'), ('Sepatu'), ('Perawatan Kulit'), ('Jam Tangan')
+  ('skincare'), ('snack'), ('fashion'), ('koleksi'),
+  ('elektronik'), ('kosmetik'), ('sepatu'), ('perawatan kulit'), ('jam tangan')
 ON CONFLICT DO NOTHING;
 
 -- Seed produk
-INSERT INTO items (nama, deskripsi, harga_jpy, stok, berat_kg, kategori_id) VALUES
-  ('Hada Labo Gokujyun Lotion',       'Lotion hyaluronic acid varian original, 170ml',           900,  50, 0.30, (SELECT id FROM categories WHERE nama = 'Skincare')),
-  ('Rohto Hadalabo Gokujun Premium',  'Serum premium dengan 5 jenis hyaluronic acid, 30ml',      1500, 30, 0.20, (SELECT id FROM categories WHERE nama = 'Skincare')),
-  ('Biore UV Aqua Rich',              'Sunscreen SPF50+ PA++++, teksur watery ringan, 70ml',     800,  60, 0.15, (SELECT id FROM categories WHERE nama = 'Perawatan Kulit')),
-  ('Tokyo Banana Box',                'Oleh-oleh khas Tokyo Station, isi 8 pcs per kotak',       1700, 40, 0.50, (SELECT id FROM categories WHERE nama = 'Snack')),
-  ('Kit Kat Matcha Uji',              'Kit Kat matcha premium edisi Kyoto, 12 batang',           800,  60, 0.20, (SELECT id FROM categories WHERE nama = 'Snack')),
-  ('Pocky Choco Almond',              'Pocky edisi coklat almond premium, 2 box',                600,  80, 0.30, (SELECT id FROM categories WHERE nama = 'Snack')),
-  ('Calbee Jagariko Salad',           'Snack kentang renyah varian salad, edisi Japan only',     350, 100, 0.15, (SELECT id FROM categories WHERE nama = 'Snack')),
-  ('Uniqlo Japan Exclusive UT',       'Koleksi UT / kolaborasi hanya rilis di toko Jepang',      2990, 20, 0.40, (SELECT id FROM categories WHERE nama = 'Fashion')),
-  ('Uniqlo Heattech Extra Warm',      'Kaos dalam Heattech extra warm untuk musim dingin',       1990, 35, 0.30, (SELECT id FROM categories WHERE nama = 'Fashion')),
-  ('GU Wide Denim Pants',             'Celana jeans wide leg edisi Japan, tersedia berbagai warna', 3990, 15, 0.60, (SELECT id FROM categories WHERE nama = 'Fashion')),
-  ('Nendoroid Series',                'Action figure resmi Good Smile Company, edisi rilis Jepang', 5500, 15, 0.40, (SELECT id FROM categories WHERE nama = 'Koleksi')),
-  ('One Piece Card Game Box',         'Booster pack kartu One Piece edisi terbaru',              3300, 25, 0.50, (SELECT id FROM categories WHERE nama = 'Koleksi')),
-  ('Pokémon Card Booster Pack',       'Booster pack kartu Pokémon edisi terbaru Jepang',        800,  40, 0.10, (SELECT id FROM categories WHERE nama = 'Koleksi')),
-  ('Casio G-Shock DW-5600',          'G-Shock classic square edisi Japan domestic',             12000, 10, 0.20, (SELECT id FROM categories WHERE nama = 'Jam Tangan')),
-  ('Casio A168WA',                    'Casio retro digital stainless edisi original Japan',      3500, 20, 0.15, (SELECT id FROM categories WHERE nama = 'Jam Tangan'))
-ON CONFLICT DO NOTHING;
+INSERT INTO items (category_id, nama, harga_idr, stok, deskripsi)
+SELECT c.id, seed.nama, seed.harga_idr, seed.stok, seed.deskripsi
+FROM (VALUES
+  ('Skincare',       'Hada Labo Gokujyun Lotion',      135000, 50, 'Lotion hyaluronic acid varian original, 170ml'),
+  ('Skincare',       'Rohto Hadalabo Gokujun Premium',  225000, 30, 'Serum premium dengan 5 jenis hyaluronic acid, 30ml'),
+  ('Perawatan Kulit','Biore UV Aqua Rich',              120000, 60, 'Sunscreen SPF50+ PA++++, tekstur watery ringan, 70ml'),
+  ('Snack',          'Tokyo Banana Box',                255000, 40, 'Oleh-oleh khas Tokyo Station, isi 8 pcs per kotak'),
+  ('Snack',          'Kit Kat Matcha Uji',              120000, 60, 'Kit Kat matcha premium edisi Kyoto, 12 batang'),
+  ('Snack',          'Pocky Choco Almond',               90000, 80, 'Pocky edisi coklat almond premium, 2 box'),
+  ('Snack',          'Calbee Jagariko Salad',            53000,100, 'Snack kentang renyah varian salad, edisi Japan only'),
+  ('Fashion',        'Uniqlo Japan Exclusive UT',       449000, 20, 'Koleksi UT / kolaborasi hanya rilis di toko Jepang'),
+  ('Fashion',        'Uniqlo Heattech Extra Warm',      299000, 35, 'Kaos dalam Heattech extra warm untuk musim dingin'),
+  ('Fashion',        'GU Wide Denim Pants',             599000, 15, 'Celana jeans wide leg edisi Japan, berbagai warna'),
+  ('Koleksi',        'Nendoroid Series',                825000, 15, 'Action figure resmi Good Smile Company, edisi Jepang'),
+  ('Koleksi',        'One Piece Card Game Box',         495000, 25, 'Booster pack kartu One Piece edisi terbaru'),
+  ('Koleksi',        'Pokemon Card Booster Pack',       120000, 40, 'Booster pack kartu Pokemon edisi terbaru Jepang'),
+  ('Jam Tangan',     'Casio G-Shock DW-5600',          1800000, 10, 'G-Shock classic square edisi Japan domestic'),
+  ('Jam Tangan',     'Casio A168WA',                    525000, 20, 'Casio retro digital stainless edisi original Japan')
+) AS seed(kategori, nama, harga_idr, stok, deskripsi)
+JOIN categories c ON c.nama = seed.kategori
+ON CONFLICT (nama) DO NOTHING;
