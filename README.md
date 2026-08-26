@@ -269,9 +269,98 @@ npm run dev
 |---|---|
 | Arsitek Sistem | Arsitektur, diagram, ADR, konsistensi desain |
 | Backend/API Engineer | Endpoint & logika bisnis inti |
-| **Infrastructure & DevOps** | **Docker, compose, nginx, healthcheck, jalankan sistem** |
+| **Infrastructure & DevOps** | **Docker, Compose, nginx, healthcheck, jaringan, CI-ready** |
 | Data & Persistence Engineer | Skema data, cache/Redis, konsistensi stok, migrasi |
 | QA, Load-Test & Dokumentasi | Pengujian, load test, AI-LOG, laporan akhir |
+
+---
+
+## Infrastructure & DevOps — Detail Pekerjaan
+
+Peran ini bertanggung jawab atas seluruh lapisan orkestrasi dan jaringan sehingga semua service yang dibuat anggota lain bisa berjalan bersama di satu perintah.
+
+### Yang Dikerjakan
+
+#### 1. Dockerfile — semua service
+Setiap service punya `Dockerfile` identik dengan best practice produksi:
+- Base image `node:22-alpine` (ringan, aman)
+- `npm ci --omit=dev` — hanya install dependency produksi
+- `.dockerignore` di tiap service — cegah `node_modules` host overwrite hasil build container
+
+```
+gateway/Dockerfile
+services/user-service/Dockerfile
+services/catalog-service/Dockerfile
+services/order-service/Dockerfile
+```
+
+#### 2. docker-compose.yml — orkestrasi lengkap
+Mendefinisikan 10 container sesuai arsitektur §10 `ARCHITECTURE.md`:
+
+| Container | Image | Peran |
+|---|---|---|
+| `nginx` | nginx:1.27-alpine | Load balancer publik, satu-satunya yang expose port 8080 |
+| `lb` | nginx:1.27-alpine | Load balancer internal antar microservice |
+| `gateway` | build lokal | API Gateway, routing + verifikasi JWT |
+| `user-service` | build lokal | Auth service (register, login, JWT) |
+| `catalog-service` | build lokal | Katalog barang + Redis cache |
+| `order-service` | build lokal | Checkout atomik + status pesanan |
+| `user-db` | postgres:16-alpine | Database khusus user-service |
+| `catalog-db` | postgres:16-alpine | Database khusus catalog-service |
+| `order-db` | postgres:16-alpine | Database khusus order-service |
+| `redis` | redis:7-alpine | Cache katalog + lock stok atomik |
+
+Fitur compose yang dikerjakan:
+- `healthcheck` pada semua container (pg_isready, redis-cli ping, wget /health)
+- `depends_on condition: service_healthy` — urutan start dijamin, tidak ada race condition
+- Volume persisten untuk semua database dan Redis
+- Satu internal bridge network — hanya nginx yang expose ke luar
+
+#### 3. nginx/nginx.conf — load balancer publik
+- Strategi `least_conn` untuk distribusi request ke gateway
+- Docker DNS resolver `127.0.0.11` dengan `valid=30s`
+- Endpoint `/health` sendiri untuk monitoring
+
+#### 4. nginx/lb.conf — load balancer internal
+- Tiga server block terpisah: port 3001 (user), 3002 (catalog), 3003 (order)
+- `set $upstream` + `proxy_pass http://$upstream` — DNS Docker di-resolve ulang otomatis tiap 30 detik tanpa perlu `nginx -s reload` manual
+- Health check sendiri di port 9000
+
+#### 5. reset.sh — skrip demo/presentasi
+Script satu perintah yang dipakai saat demo ke dosen:
+```bash
+bash reset.sh
+```
+Urutan: `docker compose down -v` → build ulang semua image → tunggu semua container healthy → verifikasi health check.
+
+#### 6. .env.example — konfigurasi per service
+File template environment variable untuk tiap service agar anggota tim tahu variabel apa yang dibutuhkan tanpa melihat kode:
+```
+gateway/.env.example
+services/user-service/.env.example
+services/catalog-service/.env.example
+services/order-service/.env.example
+.env.example          ← JWT_SECRET level root (dipakai docker compose)
+```
+
+### Bukti Sistem Berjalan
+
+Setelah `bash reset.sh` atau `docker compose up -d --build`:
+
+```
+10/10 container running
+ 9/9  container dengan healthcheck = healthy
+```
+
+```bash
+$ curl http://localhost:8080/health
+{"status":"ok","service":"nginx"}
+
+$ curl http://localhost:8080/api/catalog | python3 -c "..."
+Total items: 18  |  Page: 1  |  Limit: 20
+```
+
+Alur JWT end-to-end berjalan: register → login → dapat token → buat order → cek status.
 
 ## Status
 
